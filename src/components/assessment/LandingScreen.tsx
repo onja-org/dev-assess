@@ -10,6 +10,7 @@ interface LandingScreenProps {
   onClearProgress?: () => void;
   hasCompletedAssessment?: boolean;
   onViewResults?: () => void;
+  completedCategories?: Category[];
 }
 
 const features: Array<{ icon: any; label: Category; desc: string }> = [
@@ -19,20 +20,29 @@ const features: Array<{ icon: any; label: Category; desc: string }> = [
   { icon: Brain, label: "Software Practices", desc: "Testing, version control & code quality" },
 ];
 
-export function LandingScreen({ onStart, hasSavedProgress, onClearProgress, hasCompletedAssessment, onViewResults }: LandingScreenProps) {
+export function LandingScreen({ onStart, hasSavedProgress, onClearProgress, hasCompletedAssessment, onViewResults, completedCategories = [] }: LandingScreenProps) {
   const [selectedCategories, setSelectedCategories] = useState<Category[]>([]);
+  const [showRetakeWarning, setShowRetakeWarning] = useState(false);
 
   const toggleCategory = (category: Category) => {
-    setSelectedCategories(prev => 
-      prev.includes(category) 
+    setSelectedCategories(prev => {
+      const isCurrentlySelected = prev.includes(category);
+      const newSelection = isCurrentlySelected
         ? prev.filter(c => c !== category)
-        : [...prev, category]
-    );
+        : [...prev, category];
+      
+      // Check if any selected category has been completed
+      const hasCompletedInSelection = newSelection.some(cat => completedCategories.includes(cat));
+      setShowRetakeWarning(hasCompletedInSelection);
+      
+      return newSelection;
+    });
   };
 
   const handleStartSelected = () => {
     if (selectedCategories.length > 0) {
       onStart(selectedCategories);
+      setSelectedCategories([]);
     }
   };
 
@@ -70,36 +80,23 @@ export function LandingScreen({ onStart, hasSavedProgress, onClearProgress, hasC
           disciplines. Get instant, actionable feedback.
         </p>
 
-        {hasCompletedAssessment && !hasSavedProgress && (
+        {hasCompletedAssessment && onViewResults && (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="mb-6 p-4 rounded-lg border border-success/30 bg-success/10"
+            className="mb-6"
           >
-            <p className="text-sm text-success font-display mb-3">
-              You've completed the assessment! View your results or start a new one.
+            <Button
+              onClick={onViewResults}
+              size="lg"
+              className="gap-3 bg-success text-success-foreground hover:bg-success/90 glow-sm font-display text-sm px-8 py-6 w-full sm:w-auto"
+            >
+              <BarChart3 className="w-4 h-4" />
+              View My Results
+            </Button>
+            <p className="text-xs text-muted-foreground font-display mt-3">
+              {hasSavedProgress ? "Continue your current assessment or view completed results" : "View your completed assessment results"}
             </p>
-            <div className="flex gap-2 justify-center flex-wrap">
-              {onViewResults && (
-                <Button
-                  onClick={onViewResults}
-                  size="sm"
-                  className="gap-2 bg-success text-success-foreground hover:bg-success/90 font-display"
-                >
-                  <BarChart3 className="w-3 h-3" />
-                  View Results
-                </Button>
-              )}
-              <Button
-                onClick={onStart}
-                size="sm"
-                variant="outline"
-                className="gap-2 border-primary/30 text-primary hover:bg-primary/10 font-display"
-              >
-                <ArrowRight className="w-3 h-3" />
-                Take Again
-              </Button>
-            </div>
           </motion.div>
         )}
 
@@ -110,11 +107,11 @@ export function LandingScreen({ onStart, hasSavedProgress, onClearProgress, hasC
             className="mb-6 p-4 rounded-lg border border-warning/30 bg-warning/10"
           >
             <p className="text-sm text-warning font-display mb-3">
-              You have saved progress! Continue where you left off.
+              You have saved progress! Continue where you left off or start a new assessment.
             </p>
             <div className="flex gap-2 justify-center flex-wrap">
               <Button
-                onClick={onStart}
+                onClick={() => onStart()}
                 size="sm"
                 className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 font-display"
               >
@@ -126,24 +123,44 @@ export function LandingScreen({ onStart, hasSavedProgress, onClearProgress, hasC
                   onClick={onClearProgress}
                   size="sm"
                   variant="outline"
-                  className="gap-2 border-warning/30 text-warning hover:bg-warning/10 font-display"
+                  className="gap-2 border-warning/30 text-warning hover:bg-warning/10 hover:text-warning font-display"
                 >
                   <RotateCcw className="w-3 h-3" />
                   Start Fresh
                 </Button>
               )}
             </div>
+            {hasSelection && (
+              <div className="mt-3 pt-3 border-t border-warning/20">
+                <Button
+                  onClick={handleStartSelected}
+                  size="sm"
+                  variant="outline"
+                  className="border-primary/30 text-primary hover:bg-primary/10 hover:text-primary hover:border-primary/50 font-display w-full min-h-[2.5rem] h-auto py-2 px-3 flex items-center justify-between flex-wrap gap-2"
+                >
+                  <div className="text-xs break-all text-left flex-1 pr-2">
+                    Start New: {selectedCategories.join(", ")}
+                  </div>
+                  <ArrowRight className="w-3 h-3 shrink-0" />
+                </Button>
+                {showRetakeWarning && (
+                  <p className="text-xs text-warning/80 mt-2">
+                    ⚠️ Retaking will reset your previous scores for selected categories
+                  </p>
+                )}
+              </div>
+            )}
           </motion.div>
         )}
 
-        {!hasSavedProgress && !hasCompletedAssessment && (
+        {!hasSavedProgress && (
           <div className="space-y-4">
             <Button
               onClick={handleStartAll}
               size="lg"
               className="gap-3 bg-primary text-primary-foreground hover:bg-primary/90 glow-sm font-display text-sm px-8 py-6 w-full sm:w-auto"
             >
-              Take Full Assessment
+              {hasCompletedAssessment ? "Take Again" : "Take Full Assessment"}
               <ArrowRight className="w-4 h-4" />
             </Button>
             {hasSelection && (
@@ -151,7 +168,7 @@ export function LandingScreen({ onStart, hasSavedProgress, onClearProgress, hasC
                 onClick={handleStartSelected}
                 size="lg"
                 variant="outline"
-                className="gap-3 border-primary/50 text-primary hover:bg-primary/10 font-display text-sm px-8 py-6 w-full sm:w-auto ml-0 sm:ml-3"
+                className="gap-3 border-primary/50 text-primary hover:bg-primary/10 hover:text-primary hover:border-primary/60 font-display text-sm px-8 py-6 w-full sm:w-auto ml-0 sm:ml-3"
               >
                 Start Selected ({selectedCategories.length})
                 <ArrowRight className="w-4 h-4" />
@@ -160,6 +177,11 @@ export function LandingScreen({ onStart, hasSavedProgress, onClearProgress, hasC
             <p className="text-xs text-muted-foreground font-display mt-3">
               {hasSelection ? "Click categories below to adjust selection" : "Or click categories below to choose specific areas"}
             </p>
+            {showRetakeWarning && hasSelection && (
+              <p className="text-xs text-warning font-display mt-2">
+                ⚠️ Retaking will reset your previous scores for selected categories
+              </p>
+            )}
           </div>
         )}
       </motion.div>
@@ -172,6 +194,7 @@ export function LandingScreen({ onStart, hasSavedProgress, onClearProgress, hasC
       >
         {features.map((f, i) => {
           const isSelected = selectedCategories.includes(f.label);
+          const isCompleted = completedCategories.includes(f.label);
           return (
             <motion.button
               key={f.label}
@@ -182,6 +205,8 @@ export function LandingScreen({ onStart, hasSavedProgress, onClearProgress, hasC
               className={`flex items-start gap-3 p-4 rounded-lg border transition-all text-left ${
                 isSelected
                   ? "border-primary bg-primary/10 card-hover"
+                  : isCompleted
+                  ? "border-success/30 bg-success/5 card-hover"
                   : "border-border bg-card/50 card-hover"
               }`}
             >
@@ -190,9 +215,19 @@ export function LandingScreen({ onStart, hasSavedProgress, onClearProgress, hasC
                 {isSelected && (
                   <CheckCircle2 className="w-3 h-3 text-primary absolute -top-1 -right-1 bg-background rounded-full" />
                 )}
+                {isCompleted && !isSelected && (
+                  <CheckCircle2 className="w-3 h-3 text-success absolute -top-1 -right-1 bg-background rounded-full" />
+                )}
               </div>
               <div className="flex-1">
-                <p className="text-sm font-display text-foreground">{f.label}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-display text-foreground">{f.label}</p>
+                  {isCompleted && (
+                    <span className="text-[10px] text-success font-display px-1.5 py-0.5 rounded bg-success/10 border border-success/20">
+                      ✓ Done
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground mt-1">{f.desc}</p>
               </div>
             </motion.button>

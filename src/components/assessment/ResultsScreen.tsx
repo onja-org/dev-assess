@@ -30,14 +30,58 @@ export function ResultsScreen({ result, recommendations, answers, questions, onR
     fullMark: 100,
   }));
 
-  const overallConfig = levelConfig[result.overallLevel];
+  // Determine which categories have been tested (have answers)
+  const testedCategories = new Set(
+    Array.from(answers.values())
+      .map((ans) => questions.find((q) => q.id === ans.questionId)?.category)
+      .filter((cat): cat is Category => cat !== undefined)
+  );
+
   const isPartialAssessment = selectedCategories && selectedCategories.length < 4;
+
+  // Calculate overall score based only on tested categories
+  const testedCategoryScores = result.categoryScores.filter(score => testedCategories.has(score.category));
+  const actualOverallPercentage = testedCategoryScores.length > 0
+    ? Math.round(testedCategoryScores.reduce((sum, score) => sum + score.percentage, 0) / testedCategoryScores.length)
+    : result.overallPercentage;
+  
+  const actualOverallLevel = actualOverallPercentage >= 80 ? "Strong" : actualOverallPercentage >= 50 ? "Moderate" : "Weak";
+  const overallConfig = levelConfig[actualOverallLevel];
 
   // Group questions by category for the review tab
   const categories = [...new Set(questions.map((q) => q.category))];
 
   return (
     <div className="min-h-screen px-4 py-12 max-w-4xl mx-auto">
+      {/* Action Buttons */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="text-center mb-8"
+      >
+        <div className="flex gap-3 justify-center flex-wrap">
+          {onBackToHome && (
+            <Button
+              onClick={onBackToHome}
+              variant="outline"
+              className="gap-2 font-display border-border text-muted-foreground hover:text-foreground hover:border-primary/30"
+            >
+              <Home className="w-4 h-4" />
+              Back to Home
+            </Button>
+          )}
+          <Button
+            onClick={onRestart}
+            variant="outline"
+            className="gap-2 font-display border-border text-muted-foreground hover:text-foreground hover:border-primary/30"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Retake Assessment
+          </Button>
+        </div>
+      </motion.div>
+
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -55,7 +99,7 @@ export function ResultsScreen({ result, recommendations, answers, questions, onR
         <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border ${overallConfig.bg} ${overallConfig.border}`}>
           <overallConfig.icon className={`w-4 h-4 ${overallConfig.color}`} />
           <span className={`font-display text-sm ${overallConfig.color}`}>
-            {isPartialAssessment ? "Category" : "Overall"}: {result.overallPercentage}% — {result.overallLevel}
+            {isPartialAssessment ? "Category" : "Overall"}: {actualOverallPercentage}% — {actualOverallLevel}
           </span>
         </div>
       </motion.div>
@@ -103,6 +147,27 @@ export function ResultsScreen({ result, recommendations, answers, questions, onR
           <div className="space-y-4 mb-8">
             {result.categoryScores.map((score, i) => {
               const config = levelConfig[score.level];
+              const hasBeenTested = testedCategories.has(score.category);
+              
+              if (!hasBeenTested) {
+                return (
+                  <motion.div
+                    key={score.category}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.3 + i * 0.08 }}
+                    className="bg-card border border-border/50 rounded-xl p-5"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-display text-sm text-muted-foreground">{score.category}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground/70 italic">
+                      Not assessed yet
+                    </p>
+                  </motion.div>
+                );
+              }
+              
               return (
                 <motion.div
                   key={score.category}
@@ -152,9 +217,24 @@ export function ResultsScreen({ result, recommendations, answers, questions, onR
 
         {/* ── Answer Review Tab ── */}
         <TabsContent value="review">
+          <div className="mb-6 p-4 rounded-lg bg-card/50 border border-border/50">
+            <p className="text-xs text-muted-foreground font-display">
+              {isPartialAssessment 
+                ? `Showing answers for the ${selectedCategories?.length} selected ${selectedCategories?.length === 1 ? 'category' : 'categories'} you tested.`
+                : "Showing all your answers from the assessment."}
+              {" "}Green indicates correct answers, red shows mistakes, and yellow highlights missed correct options.
+            </p>
+          </div>
           <div className="space-y-8">
-            {categories.map((cat) => {
-              const catQuestions = questions.filter((q) => q.category === cat);
+            {categories
+              .filter((cat) => !isPartialAssessment || selectedCategories?.includes(cat))
+              .map((cat) => {
+              const catQuestions = questions
+                .filter((q) => q.category === cat)
+                .filter((q) => answers.has(q.id));
+              
+              if (catQuestions.length === 0) return null;
+              
               return (
                 <div key={cat}>
                   <h3 className="text-sm font-display text-primary uppercase tracking-wider mb-4">{cat}</h3>
@@ -267,8 +347,28 @@ export function ResultsScreen({ result, recommendations, answers, questions, onR
         {/* ── Recommendations Tab ── */}
         <TabsContent value="recommendations">
           <div className="space-y-4">
-            {recommendations.map((rec) => {
+            {recommendations
+              .filter((rec) => !isPartialAssessment || selectedCategories?.includes(rec.category))
+              .map((rec) => {
               const config = levelConfig[rec.level];
+              const hasBeenTested = testedCategories.has(rec.category);
+              
+              if (!hasBeenTested) {
+                return (
+                  <div
+                    key={rec.category}
+                    className="border rounded-xl p-5 bg-muted/20 border-border/50"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-display text-sm text-muted-foreground">{rec.category}</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground/70 italic">
+                      Take the assessment for this category to see personalized recommendations.
+                    </p>
+                  </div>
+                );
+              }
+              
               return (
                 <div
                   key={rec.category}
@@ -293,35 +393,6 @@ export function ResultsScreen({ result, recommendations, answers, questions, onR
           </div>
         </TabsContent>
       </Tabs>
-
-      {/* Restart */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-        className="text-center pt-8 pb-12"
-      >
-        <div className="flex gap-3 justify-center flex-wrap">
-          {onBackToHome && (
-            <Button
-              onClick={onBackToHome}
-              variant="outline"
-              className="gap-2 font-display border-border text-muted-foreground hover:text-foreground hover:border-primary/30"
-            >
-              <Home className="w-4 h-4" />
-              Back to Home
-            </Button>
-          )}
-          <Button
-            onClick={onRestart}
-            variant="outline"
-            className="gap-2 font-display border-border text-muted-foreground hover:text-foreground hover:border-primary/30"
-          >
-            <RotateCcw className="w-4 h-4" />
-            Retake Assessment
-          </Button>
-        </div>
-      </motion.div>
     </div>
   );
 }

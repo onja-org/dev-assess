@@ -28,7 +28,7 @@ const STORAGE_COMPLETED_KEY = "know-shine-completed";
 const STORAGE_CATEGORIES_KEY = "know-shine-selected-categories";
 
 // Helper functions for localStorage
-const saveToLocalStorage = (answers: Map<string, UserAnswer>, currentIndex: number, screen: Screen, isCompleted?: boolean, selectedCategories?: Category[]) => {
+const saveToLocalStorage = (answers: Map<string, UserAnswer>, currentIndex: number, screen: Screen, isCompleted?: boolean, selectedCategories?: Category[] | null) => {
   try {
     const answersArray = Array.from(answers.entries());
     localStorage.setItem(STORAGE_KEY, JSON.stringify(answersArray));
@@ -37,8 +37,12 @@ const saveToLocalStorage = (answers: Map<string, UserAnswer>, currentIndex: numb
     if (isCompleted !== undefined) {
       localStorage.setItem(STORAGE_COMPLETED_KEY, String(isCompleted));
     }
-    if (selectedCategories) {
-      localStorage.setItem(STORAGE_CATEGORIES_KEY, JSON.stringify(selectedCategories));
+    if (selectedCategories !== undefined) {
+      if (selectedCategories === null) {
+        localStorage.removeItem(STORAGE_CATEGORIES_KEY);
+      } else {
+        localStorage.setItem(STORAGE_CATEGORIES_KEY, JSON.stringify(selectedCategories));
+      }
     }
   } catch (error) {
     console.error("Failed to save to localStorage:", error);
@@ -93,6 +97,15 @@ const Index = () => {
     ? questions.filter(q => selectedCategories.includes(q.category))
     : questions;
 
+  // Determine which categories have been completed
+  const completedCategories: Category[] = Array.from(
+    new Set(
+      Array.from(answers.values())
+        .map((ans) => questions.find((q) => q.id === ans.questionId)?.category)
+        .filter((cat): cat is Category => cat !== undefined)
+    )
+  );
+
   // Load from localStorage on mount
   useEffect(() => {
     const saved = loadFromLocalStorage();
@@ -109,7 +122,7 @@ const Index = () => {
   // Save to localStorage whenever answers, currentIndex, or screen changes
   useEffect(() => {
     if (isInitialized) {
-      saveToLocalStorage(answers, currentIndex, screen, undefined, selectedCategories || undefined);
+      saveToLocalStorage(answers, currentIndex, screen, undefined, selectedCategories);
     }
   }, [answers, currentIndex, screen, isInitialized, selectedCategories]);
 
@@ -129,7 +142,7 @@ const Index = () => {
     const recommendations = getRecommendations(result.categoryScores);
     setScreen("results");
     setHasCompletedAssessment(true);
-    saveToLocalStorage(answers, currentIndex, "results", true, selectedCategories || undefined);
+    saveToLocalStorage(answers, currentIndex, "results", true, selectedCategories);
   };
 
   const handleRestart = () => {
@@ -189,6 +202,7 @@ const Index = () => {
               onClearProgress={handleStartFresh}
               hasCompletedAssessment={hasCompletedAssessment}
               onViewResults={handleViewResults}
+              completedCategories={completedCategories}
             />
           </motion.div>
         )}
@@ -253,7 +267,7 @@ const Index = () => {
                     variant="ghost"
                     onClick={() => setCurrentIndex((i) => i - 1)}
                     disabled={isFirst}
-                    className="gap-2 text-muted-foreground"
+                    className="gap-2 text-muted-foreground hover:text-foreground"
                   >
                     <ChevronLeft className="w-4 h-4" />
                     Back
@@ -271,7 +285,7 @@ const Index = () => {
                     <Button
                       variant="ghost"
                       onClick={() => setCurrentIndex((i) => i + 1)}
-                      className="gap-2 text-muted-foreground"
+                      className="gap-2 text-muted-foreground hover:text-foreground"
                     >
                       Next
                       <ChevronRight className="w-4 h-4" />
