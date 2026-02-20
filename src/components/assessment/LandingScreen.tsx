@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { ArrowRight, Code2, Brain, Layers, Settings2, RotateCcw, BarChart3, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Category } from "@/data/types";
+import { questions } from "@/data/questions";
 import { useState } from "react";
 
 interface LandingScreenProps {
@@ -66,7 +67,7 @@ export function LandingScreen({ onStart, hasSavedProgress, onClearProgress, hasC
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-border bg-card mb-8">
           <span className="w-2 h-2 rounded-full bg-primary animate-pulse-glow" />
           <span className="text-xs font-display text-muted-foreground">
-            35 questions · ~10 minutes
+            {questions.length} questions · ~{Math.ceil(questions.length * 0.3)} min
           </span>
         </div>
 
